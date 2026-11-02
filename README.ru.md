@@ -1,10 +1,11 @@
+[English](README.md) · [Русский](README.ru.md)
+
 # tizenroot
 
 Root-инжектор для Samsung TV 2017 (Tizen 3.0). Даёт root-шелл, устойчивый к ребуту, и механизм хуков, на котором держится [tizen3-ytad](https://github.com/HFedorovskyi/tizen3-ytad).
 
 Проверено на `UE55MU6179` (`T-KTMDEUC`, Tizen 3.0). На других Tizen 3.0-моделях, скорее всего, работает так же, но D-Bus-сервис и особенности шелла ниже привязаны к модели.
 
-**English version:** [README.md](README.md)
 
 ## Модель доступа
 

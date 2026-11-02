@@ -1,10 +1,11 @@
+[English](README.md) · [Русский](README.ru.md)
+
 # tizenroot
 
 Root injector for Samsung 2017 TVs running Tizen 3.0. It gives a root shell that survives reboots and a hook mechanism, which [tizen3-ytad](https://github.com/HFedorovskyi/tizen3-ytad) builds on.
 
 Tested on `UE55MU6179` (`T-KTMDEUC`, Tizen 3.0). Other Tizen 3.0 models are likely to work the same way, but the D-Bus service and the shell quirks below are model-specific.
 
-**Русская версия:** [README.ru.md](README.ru.md)
 
 ## Access model
 
