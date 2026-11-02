@@ -39,10 +39,11 @@ node tizenroot.js --serial 192.168.1.50:26101 install
 Watchdog:
 
 - при старте, если pid-файла нет — инжект сразу (окно после ребута ~1–3 с);
-- раз в 10 с: pid мёртв → инжект; heartbeat не менялся 35 с → инжект;
-- инжект с проверкой: успех только если `/tmp/rootd.pid` указывает на живой процесс.
+- раз в 10 с: heartbeat старше 30 с → инжект; инжект засчитывается, только когда beat стал свежим;
+- живость не проверяется через `/proc/<pid>`: `rootd` работает под меткой Smack `System`, и watchdog из `User` не может даже `stat` его — старая проверка падала всегда и инжектила каждые ~10 с, из-за чего ТВ не просыпался из стендбая;
+- после resume watchdog ждёт 12 с: `rootd` тоже был заморожен и ему нужен один период, чтобы проставить beat.
 
-Heartbeat `$BASE/rootd.beat` создаёт сам watchdog (метка Smack `User`), rootd только перезаписывает inode.
+Heartbeat `$BASE/rootd.beat` создаёт сам watchdog (метка Smack `User`), rootd каждые 10 с пишет в него unix-время и возвращает метку.
 
 ## Хуки
 
@@ -96,7 +97,7 @@ node tizenroot.js sh 'systemctl --user status rootinject.service'
 ```
 
 - нет нового pid после `install` → `rootinject.log` (ошибка D-Bus), `systemctl --user status`;
-- юнит `active`, rootd мёртв → watchdog перезапустит за ≤10 с; руками: `systemctl --user restart rootinject.service`;
+- юнит `active`, rootd мёртв → watchdog перезапустит за ~20 с (12 с пауза после resume + ожидание beat); руками: `systemctl --user restart rootinject.service`;
 - sdb перестал отвечать на всё → цикл питания, после загрузки цепочка поднимется сама.
 
 ## Ограничения

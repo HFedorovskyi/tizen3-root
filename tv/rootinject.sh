@@ -1,7 +1,7 @@
 #!/bin/sh
 # root re-injection watchdog. runs as owner (uid 5001) under systemd --user forever.
-# rootd bumps $BASE/rootd.beat every 10s. A pid file that points at nothing, or a
-# beat that has not moved for ~35s, means rootd is gone and gets re-injected.
+# rootd stamps $BASE/rootd.beat with unix time every 10s. /proc/<root pid> is not
+# readable from the User context (Smack), so the heartbeat is the only liveness signal.
 BASE=/opt/usr/home/owner
 LOG=$BASE/rootinject.log
 HB=$BASE/rootd.beat
@@ -17,8 +17,9 @@ inject() {
   busctl call com.jackpack.migration /com/jackpack/migration com.jackpack.migration ExecuteUserShell s "0${C}/bin/sh < $BASE/rootd.sh >/dev/null 2>&1 &" >/dev/null 2>&1
   i=0
   while [ $i -lt 15 ]; do
-    p=$(cat /tmp/rootd.pid 2>/dev/null)
-    [ -n "$p" ] && [ -d "/proc/$p" ] && return 0
+    v=$(cat "$HB" 2>/dev/null)
+    now=$(date +%s)
+    if [ -n "$v" ] && [ $((now - v)) -lt 12 ]; then return 0; fi
     sleep 1
     i=$((i + 1))
   done
@@ -26,27 +27,25 @@ inject() {
 }
 
 alive() {
-  p=$(cat /tmp/rootd.pid 2>/dev/null)
-  [ -n "$p" ] && [ -d "/proc/$p" ]
+  v=$(cat "$HB" 2>/dev/null)
+  [ -n "$v" ] || return 1
+  [ $(( $(date +%s) - v )) -lt 30 ]
 }
 
-# /tmp is tmpfs: missing pid file means the first watchdog run after boot.
-if ! alive; then
-  if inject; then echo "inject boot" >> "$LOG"; else echo "inject boot failed" >> "$LOG"; fi
-fi
-
-last=""
-lastchg=$(date +%s)
 while true; do
-  now=$(date +%s)
-  v=$(cat "$HB" 2>/dev/null)
-  if [ -n "$v" ] && [ "$v" != "$last" ]; then last="$v"; lastchg=$now; fi
   if ! alive; then
-    if inject; then echo "inject pid gone" >> "$LOG"; else echo "inject failed pid gone" >> "$LOG"; fi
-    lastchg=$(date +%s)
-  elif [ $((now - lastchg)) -ge 35 ]; then
-    if inject; then echo "inject beat=$v stale" >> "$LOG"; else echo "inject failed beat=$v stale" >> "$LOG"; fi
-    lastchg=$(date +%s)
+    if [ ! -e /tmp/rootd.pid ]; then
+      # /tmp is tmpfs: no pid file means the first watchdog run after boot
+      if inject; then echo "inject boot" >> "$LOG"; else echo "inject boot failed" >> "$LOG"; fi
+    else
+      # a stale beat right after resume is expected: rootd was frozen too and needs
+      # one beat period to stamp again. injecting in that window is what used to
+      # break wake-up from standby.
+      sleep 12
+      if ! alive; then
+        if inject; then echo "inject" >> "$LOG"; else echo "inject failed" >> "$LOG"; fi
+      fi
+    fi
   fi
   sleep 10
 done

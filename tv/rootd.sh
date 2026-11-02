@@ -13,6 +13,8 @@ if [ -e /tmp/rootd.pid ]; then
   if [ -n "$op" ] && kill -0 "$op" 2>/dev/null; then exit 0; fi
 fi
 echo $$ > /tmp/rootd.pid
+# the owner watchdog cannot stat a System-labelled file, so this one carries User
+chsmack -a User /tmp/rootd.pid 2>/dev/null
 
 # hooks go in through stdin: on this firmware `sh /opt/.../script` (path under
 # $BASE as an argument) hangs the shell in a kernel wait, while `sh < script` works
@@ -29,6 +31,9 @@ while true; do
     ( /bin/sh < "$JOB" >> "$OUT" 2>&1; echo "__rc=$?" >> "$OUT" ) &
   fi
   n=$((n + 1))
-  if [ $((n % 10)) -eq 0 ] && [ -e "$HB" ]; then echo "$n" > "$HB"; fi
+  if [ $((n % 10)) -eq 0 ]; then
+    date +%s > "$HB"
+    chsmack -a User "$HB" 2>/dev/null
+  fi
   sleep 1
 done

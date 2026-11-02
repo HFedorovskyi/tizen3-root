@@ -39,10 +39,11 @@ What it does:
 The watchdog:
 
 - on start, if there is no pid file, it injects immediately (about 1–3 s after boot);
-- every 10 s: pid dead → inject; heartbeat unchanged for 35 s → inject;
-- an injection only counts as successful when `/tmp/rootd.pid` points to a live process.
+- every 10 s: heartbeat older than 30 s → inject; an injection only counts as successful when the beat turns fresh;
+- `/proc/<pid>` is not used for liveness: `rootd` runs as Smack `System` and the `User` watchdog may not even `stat` it — the old check always failed and re-injected every ~10 s, which broke wake-up from standby;
+- after a resume it waits 12 s before injecting, because `rootd` is frozen with the system and needs one beat period.
 
-The heartbeat file `$BASE/rootd.beat` is created by the watchdog itself (Smack label `User`); rootd only rewrites the existing inode.
+The heartbeat file `$BASE/rootd.beat` is created by the watchdog itself (Smack label `User`); `rootd` writes unix time into it every 10 s and re-applies the label.
 
 ## Hooks
 
@@ -96,7 +97,7 @@ node tizenroot.js sh 'systemctl --user status rootinject.service'
 ```
 
 - no new pid after `install` → `rootinject.log` (D-Bus error), `systemctl --user status`;
-- unit `active` but rootd is dead → the watchdog restarts it within 10 s; manually: `systemctl --user restart rootinject.service`;
+- unit `active` but rootd is dead → the watchdog restarts it within ~20 s (12 s resume grace + beat wait); manually: `systemctl --user restart rootinject.service`;
 - sdb stopped answering everything → power cycle; the chain comes back on its own.
 
 ## Limits
